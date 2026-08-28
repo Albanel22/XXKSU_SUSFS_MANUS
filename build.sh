@@ -94,7 +94,7 @@ rm -rf "$OUT_DIR"
 make O="$OUT_DIR" ARCH=arm64 LLVM=1 LLVM_IAS=1 \
   CROSS_COMPILE=aarch64-linux-gnu- vendor/lito-perf_defconfig
 make O="$OUT_DIR" ARCH=arm64 LLVM=1 LLVM_IAS=1 \
-  CROSS_COMPILE=aarch64-linux-gnu- -j"$(nproc)"
+  CROSS_COMPILE=aarch64-linux-gnu- -j"$(nproc)" Image
 test -f "$OUT_DIR/arch/arm64/boot/Image"
 grep -E '^(CONFIG_KSU|CONFIG_KSU_SUSFS)' "$OUT_DIR/.config" \
   | tee "$ROOT_DIR/kiev-effective-config.txt"
