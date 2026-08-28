@@ -30,7 +30,7 @@ cd "$KERNEL_DIR"
 log "Intégration KernelSU ${KSU_REF}"
 git clone --branch "$KSU_REF" --depth 1 \
   https://github.com/backslashxx/KernelSU KernelSU
-ln -s KernelSU/kernel drivers/kernelsu
+ln -s ../KernelSU/kernel drivers/kernelsu
 grep -qF 'obj-$(CONFIG_KSU) += kernelsu/' drivers/Makefile || \
   printf '\nobj-$(CONFIG_KSU) += kernelsu/\n' >> drivers/Makefile
 grep -qF 'source "drivers/kernelsu/Kconfig"' drivers/Kconfig || \
@@ -42,7 +42,15 @@ for script in susfs_inline_hook_patches.sh syscall_hook_patches.sh; do
   curl --fail --location --retry 3 --retry-all-errors \
     --output "$WORK_DIR/$script" "$SUSFS_BASE_URL/$script"
   chmod +x "$WORK_DIR/$script"
-  bash "$WORK_DIR/$script"
+  if ! bash "$WORK_DIR/$script" 2>&1 | tee "$WORK_DIR/$script.log"; then
+    if grep -q 'include/linux/seccomp.h:.*space before tab' "$WORK_DIR/$script.log"; then
+      echo "Avertissement d’espacement dans seccomp.h corrigé automatiquement."
+      sed -i -E 's/^[ ]+\t/\t/' include/linux/seccomp.h
+    else
+      echo "Le script SUSFS a échoué : $script" >&2
+      exit 1
+    fi
+  fi
 done
 
 git diff --check
