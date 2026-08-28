@@ -13,7 +13,7 @@ PATCH_DIR="$ROOT_DIR/${SUSFS_PATCH_DIR:-patches/susfs-kiev}"
 log() { printf '\n==== %s ====\n' "$*"; }
 need() { command -v "$1" >/dev/null 2>&1 || { echo "Commande absente: $1" >&2; exit 1; }; }
 
-for c in curl git make clang llvm unzip zip; do need "$c"; done
+for c in curl git make clang ld.lld llvm-ar unzip zip; do need "$c"; done
 mkdir -p "$WORK_DIR" "$BOOT_DIR"
 
 log "Téléchargement du boot.img"
