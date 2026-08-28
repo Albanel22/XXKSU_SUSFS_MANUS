@@ -1,0 +1,258 @@
+name: Build kiev LineageOS 23.2 kernel
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_rom:
+        description: Construire la ROM complète après le boot.img
+        required: true
+        default: false
+        type: boolean
+      clean_sync:
+        description: Supprimer le checkout LineageOS avant la synchronisation
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+env:
+  LINEAGE_BRANCH: lineage-23.2
+  DEVICE: kiev
+  KSU_REF: v3.2.5
+  SUSFS_PATCH_DIR: patches/susfs-kiev
+  CCACHE_SIZE: 50G
+
+jobs:
+  build:
+    runs-on: [self-hosted, linux, x64, android-build]
+    timeout-minutes: 1440
+
+    steps:
+      - name: Checkout du dépôt et des patchs locaux
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Vérifier le runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "CPU: $(nproc)"
+          free -h
+          df -hT
+          command -v repo
+          command -v ccache
+          available_kb="$(df --output=avail / | tail -1 | tr -d ' ')"
+          if [ "$available_kb" -lt 250000000 ]; then
+            echo "Espace libre insuffisant : au moins 250 GB sont requis." >&2
+            exit 1
+          fi
+
+      - name: Installer les dépendances Android
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            bc bison build-essential ccache curl erofs-utils flex g++-multilib \
+            gcc-multilib git git-lfs gnupg gperf imagemagick lib32readline-dev \
+            lib32z1-dev libdw-dev libelf-dev libgnutls28-dev liblz4-tool \
+            libncurses5-dev libncurses-dev libssl-dev libxml2 libxml2-utils \
+            lz4 lzop pngcrush protobuf-compiler python3-protobuf rsync \
+            schedtool squashfs-tools xsltproc zip zlib1g-dev
+          git lfs install
+
+      - name: Configurer ccache
+        shell: bash
+        run: |
+          set -euo pipefail
+          ccache -M "$CCACHE_SIZE"
+          ccache -z
+          ccache --set-config=compression=true
+
+      - name: Initialiser ou nettoyer la source LineageOS
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="/usr/local/bin:$HOME/bin:$PATH"
+          command -v repo
+          LINEAGE_DIR="$GITHUB_WORKSPACE/lineage"
+
+          if [ "${{ inputs.clean_sync }}" = "true" ]; then
+            rm -rf "$LINEAGE_DIR"
+          fi
+
+          mkdir -p "$LINEAGE_DIR"
+          cd "$LINEAGE_DIR"
+
+          if [ ! -d .repo ]; then
+            repo init \
+              -u https://github.com/LineageOS/android.git \
+              -b "$LINEAGE_BRANCH" \
+              --git-lfs \
+              --no-clone-bundle
+          fi
+
+          repo sync -c \
+            --no-clone-bundle \
+            --no-tags \
+            --optimized-fetch \
+            --prune \
+            -j"$(nproc)"
+
+      - name: Préparer le produit kiev
+        working-directory: lineage
+        shell: bash
+        run: |
+          set -euo pipefail
+          source build/envsetup.sh
+          breakfast "$DEVICE"
+
+      - name: Intégrer KernelSU backslashxx
+        working-directory: lineage/kernel/motorola/sm8250
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -e KernelSU ] || [ -L drivers/kernelsu ]; then
+            echo "KernelSU existe déjà dans l'arbre du runner." >&2
+            echo "Utilisez clean_sync=true ou nettoyez cette intégration avant de relancer." >&2
+            exit 1
+          fi
+
+          git clone --branch "$KSU_REF" --depth 1 \
+            https://github.com/backslashxx/KernelSU.git KernelSU
+
+          echo "KernelSU commit: $(git -C KernelSU rev-parse HEAD)"
+
+          ln -s KernelSU/kernel drivers/kernelsu
+
+          if ! grep -qF 'obj-$(CONFIG_KSU) += kernelsu/' drivers/Makefile; then
+            printf '\nobj-$(CONFIG_KSU) += kernelsu/\n' >> drivers/Makefile
+          fi
+
+          if ! grep -qF 'source "drivers/kernelsu/Kconfig"' drivers/Kconfig; then
+            sed -i '/^endmenu/i source "drivers/kernelsu/Kconfig"' drivers/Kconfig
+          fi
+
+          git diff --check
+
+      - name: Appliquer le port SUSFS local
+        working-directory: lineage/kernel/motorola/sm8250
+        shell: bash
+        run: |
+          set -euo pipefail
+          PATCH_ROOT="$GITHUB_WORKSPACE/$SUSFS_PATCH_DIR"
+
+          if [ ! -d "$PATCH_ROOT" ]; then
+            echo "Répertoire absent : $PATCH_ROOT" >&2
+            echo "Ajoutez vos patchs SUSFS 2.2 portés vers cette base." >&2
+            exit 1
+          fi
+
+          mapfile -t patches < <(find "$PATCH_ROOT" -maxdepth 1 -type f -name '*.patch' | sort)
+          if [ "${#patches[@]}" -eq 0 ]; then
+            echo "Aucun fichier .patch dans $PATCH_ROOT" >&2
+            exit 1
+          fi
+
+          for patch in "${patches[@]}"; do
+            echo "Vérification : $patch"
+            git apply --check --verbose "$patch"
+          done
+
+          for patch in "${patches[@]}"; do
+            echo "Application : $patch"
+            git apply --index "$patch"
+          done
+
+          git diff --check
+
+      - name: Ajouter les options KernelSU et SUSFS
+        working-directory: lineage/kernel/motorola/sm8250
+        shell: bash
+        run: |
+          set -euo pipefail
+          CONFIG=arch/arm64/configs/vendor/ext_config/kiev-default.config
+          test -f "$CONFIG"
+
+          cat >> "$CONFIG" <<'EOF'
+
+# KernelSU backslashxx : kiev non-GKI 4.19
+CONFIG_KSU=y
+# CONFIG_KSU_KPROBES_KSUD is not set
+CONFIG_KSU_HACK_ARM64_BRANCH_LINK=y
+CONFIG_KSU_LSM_SECURITY_HOOKS=y
+# CONFIG_KSU_DEBUG is not set
+
+# SUSFS 2.2 : symboles présents dans le port local validé
+CONFIG_KSU_SUSFS=y
+CONFIG_KSU_SUSFS_SUS_PATH=y
+CONFIG_KSU_SUSFS_SUS_MOUNT=y
+CONFIG_KSU_SUSFS_SUS_KSTAT=y
+CONFIG_KSU_SUSFS_TRY_UMOUNT=y
+CONFIG_KSU_SUSFS_SPOOF_UNAME=y
+CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y
+# CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT is not set
+# CONFIG_KSU_SUSFS_SUS_OVERLAYFS is not set
+# CONFIG_KSU_SUSFS_OPEN_REDIRECT is not set
+# CONFIG_KSU_SUSFS_ENABLE_LOG is not set
+EOF
+
+          git diff --check
+
+      - name: Compiler le bootimage de test
+        working-directory: lineage
+        shell: bash
+        env:
+          USE_CCACHE: 1
+          CCACHE_EXEC: /usr/bin/ccache
+        run: |
+          set -euo pipefail
+          source build/envsetup.sh
+          lunch lineage_kiev-userdebug
+          mka bootimage
+
+          KERNEL_OBJ=out/target/product/kiev/obj/KERNEL_OBJ
+          test -f out/target/product/kiev/boot.img
+          test -f "$KERNEL_OBJ/.config"
+
+          grep -E '^(CONFIG_KSU|CONFIG_KSU_SUSFS)' \
+            "$KERNEL_OBJ/.config" \
+            | tee "$GITHUB_WORKSPACE/kiev-effective-config.txt"
+
+          cp out/target/product/kiev/boot.img \
+            "$GITHUB_WORKSPACE/boot-kiev-lineage23.2-ksu-susfs.img"
+          ccache -s | tee "$GITHUB_WORKSPACE/ccache-stats.txt"
+
+      - name: Construire la ROM complète
+        if: ${{ inputs.build_rom }}
+        working-directory: lineage
+        shell: bash
+        env:
+          USE_CCACHE: 1
+          CCACHE_EXEC: /usr/bin/ccache
+        run: |
+          set -euo pipefail
+          source build/envsetup.sh
+          brunch kiev
+
+      - name: Publier les artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kiev-lineage23.2-kernelsu-susfs-${{ github.run_number }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            boot-kiev-lineage23.2-ksu-susfs.img
+            kiev-effective-config.txt
+            ccache-stats.txt
+            lineage/out/target/product/kiev/boot.img
+            lineage/out/target/product/kiev/recovery.img
+            lineage/out/target/product/kiev/vendor_boot.img
+            lineage/out/target/product/kiev/dtbo.img
+            lineage/out/target/product/kiev/lineage-*.zip
+            lineage/out/target/product/kiev/obj/KERNEL_OBJ/.config
+            lineage/out/target/product/kiev/obj/KERNEL_OBJ/mapphone_defconfig
