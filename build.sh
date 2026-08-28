@@ -42,6 +42,9 @@ for script in susfs_inline_hook_patches.sh syscall_hook_patches.sh; do
   curl --fail --location --retry 3 --retry-all-errors \
     --output "$WORK_DIR/$script" "$SUSFS_BASE_URL/$script"
   chmod +x "$WORK_DIR/$script"
+  # Le script de référence contient son propre git diff --check ; il peut
+  # retourner 2 pour un simple espace avant tabulation dans seccomp.h.
+  sed -i -E '/^[[:space:]]*git diff --check[[:space:]]*$/d' "$WORK_DIR/$script"
   set +e
   bash "$WORK_DIR/$script" 2>&1 | tee "$WORK_DIR/$script.log"
   script_status=${PIPESTATUS[0]}
@@ -58,8 +61,9 @@ for script in susfs_inline_hook_patches.sh syscall_hook_patches.sh; do
   fi
 done
 
+# Normaliser les espaces avant tabulation introduits par SUSFS.
+sed -i -E 's/^[ ]+\t/\t/' include/linux/seccomp.h
 git diff --check
-
 defconfig="arch/arm64/configs/vendor/lito-perf_defconfig"
 test -f "$defconfig"
 cat >> "$defconfig" <<'EOF'
