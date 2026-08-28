@@ -178,30 +178,31 @@ jobs:
           CONFIG=arch/arm64/configs/vendor/ext_config/kiev-default.config
           test -f "$CONFIG"
 
-          cat >> "$CONFIG" <<'EOF'
-
-# KernelSU backslashxx : kiev non-GKI 4.19
-CONFIG_KSU=y
-# CONFIG_KSU_KPROBES_KSUD is not set
-CONFIG_KSU_HACK_ARM64_BRANCH_LINK=y
-CONFIG_KSU_LSM_SECURITY_HOOKS=y
-# CONFIG_KSU_DEBUG is not set
-
-# SUSFS 2.2 : symboles présents dans le port local validé
-CONFIG_KSU_SUSFS=y
-CONFIG_KSU_SUSFS_SUS_PATH=y
-CONFIG_KSU_SUSFS_SUS_MOUNT=y
-CONFIG_KSU_SUSFS_SUS_KSTAT=y
-CONFIG_KSU_SUSFS_TRY_UMOUNT=y
-CONFIG_KSU_SUSFS_SPOOF_UNAME=y
-CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y
-# CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT is not set
-# CONFIG_KSU_SUSFS_SUS_OVERLAYFS is not set
-# CONFIG_KSU_SUSFS_OPEN_REDIRECT is not set
-# CONFIG_KSU_SUSFS_ENABLE_LOG is not set
-EOF
+          printf '%s\n' \
+            '' \
+            '# KernelSU backslashxx : kiev non-GKI 4.19' \
+            'CONFIG_KSU=y' \
+            '# CONFIG_KSU_KPROBES_KSUD is not set' \
+            'CONFIG_KSU_HACK_ARM64_BRANCH_LINK=y' \
+            'CONFIG_KSU_LSM_SECURITY_HOOKS=y' \
+            '# CONFIG_KSU_DEBUG is not set' \
+            '' \
+            '# SUSFS 2.2 : symboles présents dans le port local validé' \
+            'CONFIG_KSU_SUSFS=y' \
+            'CONFIG_KSU_SUSFS_SUS_PATH=y' \
+            'CONFIG_KSU_SUSFS_SUS_MOUNT=y' \
+            'CONFIG_KSU_SUSFS_SUS_KSTAT=y' \
+            'CONFIG_KSU_SUSFS_TRY_UMOUNT=y' \
+            'CONFIG_KSU_SUSFS_SPOOF_UNAME=y' \
+            'CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y' \
+            '# CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT is not set' \
+            '# CONFIG_KSU_SUSFS_SUS_OVERLAYFS is not set' \
+            '# CONFIG_KSU_SUSFS_OPEN_REDIRECT is not set' \
+            '# CONFIG_KSU_SUSFS_ENABLE_LOG is not set' \
+            >> "$CONFIG"
 
           git diff --check
+
 
       - name: Compiler le bootimage de test
         working-directory: lineage
