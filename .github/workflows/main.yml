@@ -30,11 +30,11 @@ jobs:
             bc bison build-essential ccache clang curl flex git \
             libelf-dev libssl-dev llvm lld make unzip zip \
             gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
-          chmod +x build-kernel-only.sh
+          chmod +x build.sh
 
       - name: Compiler le noyau et reconstruire boot.img
         shell: bash
-        run: ./build-kernel-only.sh
+        run: ./build.sh
 
       - name: Publier les artefacts
         if: always()
