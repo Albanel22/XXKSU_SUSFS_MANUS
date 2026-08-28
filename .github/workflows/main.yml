@@ -1,88 +1,50 @@
-name: Build kiev LineageOS 23.2
+name: Build kiev kernel only
 
 'on':
   workflow_dispatch:
-    inputs:
-      build_rom:
-        description: Construire la ROM complète après bootimage
-        required: true
-        default: false
-        type: boolean
-      clean_sync:
-        description: Supprimer la source LineageOS avant le build
-        required: true
-        default: false
-        type: boolean
 
 permissions:
   contents: read
 
 env:
-  LINEAGE_BRANCH: lineage-23.2
-  DEVICE: kiev
+  BOOT_URL: https://mirrorbits.lineageos.org/full/kiev/20260809/boot.img
   KSU_REF: v3.2.5
   SUSFS_PATCH_DIR: patches/susfs-kiev
   CCACHE_SIZE: 10G
 
 jobs:
   build:
-    # ubuntu-24.04 permet au job de démarrer sans runner auto-hébergé.
-    # La compilation complète LineageOS peut toutefois manquer de stockage.
     runs-on: ubuntu-24.04
-    timeout-minutes: 1440
+    timeout-minutes: 360
 
     steps:
-      - name: Récupérer build.sh et les patchs
+      - name: Checkout du script et des patchs
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
 
-      - name: Installer les dépendances
+      - name: Installer les outils
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            bc bison build-essential ccache curl erofs-utils flex g++-multilib \
-            gcc-multilib git git-lfs gnupg gperf imagemagick lib32readline-dev \
-            lib32z1-dev libdw-dev libelf-dev libgnutls28-dev liblz4-tool \
-            libncurses5-dev libncurses-dev libssl-dev libxml2 libxml2-utils \
-            lz4 lzop pngcrush protobuf-compiler python3-protobuf repo rsync \
-            schedtool squashfs-tools xsltproc zip zlib1g-dev
-          git lfs install
+            bc bison build-essential ccache clang curl flex git \
+            libelf-dev libssl-dev llvm lld make unzip zip \
+            gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+          chmod +x build-kernel-only.sh
 
-      - name: Préparer l’espace de travail
+      - name: Compiler le noyau et reconstruire boot.img
         shell: bash
-        run: |
-          set -euo pipefail
-          echo "CPU: $(nproc)"
-          free -h
-          df -hT
-          chmod +x build.sh
-          if [ "${{ inputs.clean_sync }}" = "true" ]; then
-            rm -rf lineage
-          fi
-
-      - name: Compiler
-        shell: bash
-        env:
-          BUILD_ROM: ${{ inputs.build_rom }}
-          USE_CCACHE: 1
-        run: ./build.sh
+        run: ./build-kernel-only.sh
 
       - name: Publier les artefacts
-        if: success()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: kiev-lineage23.2-${{ github.run_number }}
+          name: kiev-kernel-ksu-susfs-${{ github.run_number }}
           if-no-files-found: warn
-          retention-days: 7
+          retention-days: 14
           path: |
-            boot-kiev-lineage23.2-ksu-susfs.img
+            boot-kiev-ksu-susfs.img
+            boot-kiev-ksu-susfs.sha256
+            Image-kiev-ksu-susfs
             kiev-effective-config.txt
-            ccache-stats.txt
-            lineage/out/target/product/kiev/boot.img
-            lineage/out/target/product/kiev/recovery.img
-            lineage/out/target/product/kiev/vendor_boot.img
-            lineage/out/target/product/kiev/dtbo.img
-            lineage/out/target/product/kiev/lineage-*.zip
