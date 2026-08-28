@@ -8,7 +8,6 @@ OUT_DIR="$KERNEL_DIR/out"
 BOOT_DIR="$WORK_DIR/boot"
 BOOT_URL="${BOOT_URL:?BOOT_URL est obligatoire}"
 KSU_REF="${KSU_REF:-v3.2.5}"
-PATCH_DIR="$ROOT_DIR/${SUSFS_PATCH_DIR:-patches/susfs-kiev}"
 
 log() { printf '\n==== %s ====\n' "$*"; }
 need() { command -v "$1" >/dev/null 2>&1 || { echo "Commande absente: $1" >&2; exit 1; }; }
@@ -37,12 +36,16 @@ grep -qF 'obj-$(CONFIG_KSU) += kernelsu/' drivers/Makefile || \
 grep -qF 'source "drivers/kernelsu/Kconfig"' drivers/Kconfig || \
   sed -i '/^endmenu/i source "drivers/kernelsu/Kconfig"' drivers/Kconfig
 
-log "Application des patchs SUSFS"
-test -d "$PATCH_DIR" || { echo "Répertoire absent: $PATCH_DIR" >&2; exit 1; }
-mapfile -t patches < <(find "$PATCH_DIR" -maxdepth 1 -type f -name '*.patch' | sort)
-test "${#patches[@]}" -gt 0 || { echo "Aucun patch SUSFS dans $PATCH_DIR" >&2; exit 1; }
-for p in "${patches[@]}"; do git apply --check "$p"; done
-for p in "${patches[@]}"; do git apply --index "$p"; done
+log "Application des scripts SUSFS 2.2 du dépôt de référence"
+SUSFS_BASE_URL="https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/mainline/Patches"
+for script in susfs_inline_hook_patches.sh syscall_hook_patches.sh; do
+  curl --fail --location --retry 3 --retry-all-errors \
+    --output "$WORK_DIR/$script" "$SUSFS_BASE_URL/$script"
+  chmod +x "$WORK_DIR/$script"
+  bash "$WORK_DIR/$script"
+done
+
+git diff --check
 
 defconfig="arch/arm64/configs/vendor/lito-perf_defconfig"
 test -f "$defconfig"
