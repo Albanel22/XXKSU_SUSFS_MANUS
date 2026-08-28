@@ -42,13 +42,18 @@ for script in susfs_inline_hook_patches.sh syscall_hook_patches.sh; do
   curl --fail --location --retry 3 --retry-all-errors \
     --output "$WORK_DIR/$script" "$SUSFS_BASE_URL/$script"
   chmod +x "$WORK_DIR/$script"
-  if ! bash "$WORK_DIR/$script" 2>&1 | tee "$WORK_DIR/$script.log"; then
+  set +e
+  bash "$WORK_DIR/$script" 2>&1 | tee "$WORK_DIR/$script.log"
+  script_status=${PIPESTATUS[0]}
+  set -e
+
+  if [ "$script_status" -ne 0 ]; then
     if grep -q 'include/linux/seccomp.h:.*space before tab' "$WORK_DIR/$script.log"; then
-      echo "Avertissement d’espacement dans seccomp.h corrigé automatiquement."
+      echo "Correction de l’espace avant tabulation dans seccomp.h"
       sed -i -E 's/^[ ]+\t/\t/' include/linux/seccomp.h
     else
       echo "Le script SUSFS a échoué : $script" >&2
-      exit 1
+      exit "$script_status"
     fi
   fi
 done
