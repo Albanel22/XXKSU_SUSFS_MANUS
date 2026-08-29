@@ -1,6 +1,6 @@
 name: Build kiev KernelSU SUSFS
 
-'on':
+on:
   workflow_dispatch:
 
 permissions:
@@ -72,9 +72,7 @@ jobs:
           done
 
           if [ -z "$SDK" ]; then
-            echo "SDK Android introuvable. Chemins testés :" >&2
-            printf '  %s\\n' "${candidates[@]}" >&2
-            find /usr/local/lib/android "$RUNNER_TOOL_CACHE" -type f -name sdkmanager -print 2>/dev/null | head -20 >&2 || true
+            echo "SDK Android introuvable." >&2
             exit 1
           fi
 
@@ -87,7 +85,6 @@ jobs:
           else
             echo "$SDK/cmdline-tools/bin" >> "$GITHUB_PATH"
           fi
-          echo "SDK détecté: $SDK"
 
       - name: Détecter ou installer le NDK Android
         shell: bash
@@ -99,13 +96,12 @@ jobs:
           fi
 
           if [ -z "$NDK_ROOT" ]; then
+            yes | sdkmanager --licenses >/dev/null 2>&1 || true
             sdkmanager --install "ndk;${ANDROID_NDK_FALLBACK}"
             NDK_ROOT="$ANDROID_SDK_ROOT/ndk/${ANDROID_NDK_FALLBACK}"
           fi
 
-          test -d "$NDK_ROOT"
           echo "ANDROID_NDK_ROOT=$NDK_ROOT" >> "$GITHUB_ENV"
-          echo "NDK détecté: $NDK_ROOT"
 
       - name: Configurer ccache
         shell: bash
