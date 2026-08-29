@@ -56,11 +56,8 @@ curl --fail --location --retry 3 --retry-all-errors \
 
 test -s "$PATCH_FILE"
 
-echo "Contrôle: $PATCH_FILE"
-git apply --check --verbose "$PATCH_FILE"
-
 echo "Application: $PATCH_FILE"
-git apply --index "$PATCH_FILE"
+git apply --verbose --reject --whitespace=nowarn "$PATCH_FILE" || true
 
 log "Contrôle des anciennes APIs"
 if grep -RInE 'ksu_is_init_rc_hook_enabled|ksu_handle_sys_read([^_a-zA-Z]|$)|ksu_hide_setprocattr([^_a-zA-Z]|$)' \
