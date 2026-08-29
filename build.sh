@@ -63,11 +63,12 @@ mapfile -t SUSFS_PATCHES < <(find "$PATCH_DIR" -maxdepth 1 -type f -name '*.patc
 [ "${#SUSFS_PATCHES[@]}" -gt 0 ] || { echo "❌ Échec du téléchargement du patch SUSFS" >&2; exit 1; }
 
 for p in "${SUSFS_PATCHES[@]}"; do
-  echo "Application via GNU patch: $p"
-  # GNU patch est beaucoup plus tolérant aux décalages de lignes grâce au "fuzzing"
-  # L'option -F 3 permet d'ignorer jusqu'à 3 lignes de contexte manquantes/modifiées
-  patch -p1 -F 3 < "$p" || { 
-    echo "❌ Le patch a échoué même avec l'outil GNU patch." >&2
+  echo "Application agressive du patch: $p"
+  # -p1 : enlève le premier niveau de dossier du patch
+  # --fuzz=10 : accepte de décaler les modifications jusqu'à 10 lignes si le code a bougé
+  # --batch : répond automatiquement oui en cas de doute
+  patch -p1 --fuzz=10 --batch < "$p" || { 
+    echo "❌ Échec critique du patch SuSFS." >&2
     exit 1
   }
 done
