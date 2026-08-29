@@ -98,10 +98,11 @@ make O="$OUT_DIR" ARCH=arm64 LLVM=1 LLVM_IAS=1 \
   cd "$KERNEL_DIR"
 
   sed -i 's#DTB_OBJS := $(shell find $(obj)/dts/ -name \\\*\.dtb)#DTB_OBJS := $(shell find $(srctree)/arch/arm64/boot/dts/ -name \\\*\.dtb)#' \
-  arch/arm64/boot/Makefile
-  
+    arch/arm64/boot/Makefile
+
   make O="$OUT_DIR" ARCH=arm64 LLVM=1 LLVM_IAS=1 \
-  CROSS_COMPILE=aarch64-linux-gnu- -j"$(nproc)" Image || \
+    CROSS_COMPILE=aarch64-linux-gnu- -j"$(nproc)" Image || true
+
   test -s "$OUT_DIR/arch/arm64/boot/Image"
 )
 IMAGE="$OUT_DIR/arch/arm64/boot/Image"
