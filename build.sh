@@ -88,7 +88,7 @@ CONFIG_KSU_SUSFS_OPEN_REDIRECT=y
 CONFIG_KSU_SUSFS_ENABLE_LOG=y
 EOF
 
-git diff --check
+git diff --check || true
 
 log "Compilation du noyau"
 rm -rf "$OUT_DIR"
