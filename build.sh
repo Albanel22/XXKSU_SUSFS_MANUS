@@ -63,14 +63,13 @@ mapfile -t SUSFS_PATCHES < <(find "$PATCH_DIR" -maxdepth 1 -type f -name '*.patc
 [ "${#SUSFS_PATCHES[@]}" -gt 0 ] || { echo "❌ Échec du téléchargement du patch SUSFS" >&2; exit 1; }
 
 for p in "${SUSFS_PATCHES[@]}"; do
-  echo "Contrôle: $p"
-  # Ignore les espaces blancs pour éviter un échec de patch dû au formatage du 4.19 Lineage
-  git apply --check --ignore-whitespace "$p"
-done
-
-for p in "${SUSFS_PATCHES[@]}"; do
-  echo "Application: $p"
-  git apply --index --ignore-whitespace "$p"
+  echo "Application via GNU patch: $p"
+  # GNU patch est beaucoup plus tolérant aux décalages de lignes grâce au "fuzzing"
+  # L'option -F 3 permet d'ignorer jusqu'à 3 lignes de contexte manquantes/modifiées
+  patch -p1 -F 3 < "$p" || { 
+    echo "❌ Le patch a échoué même avec l'outil GNU patch." >&2
+    exit 1
+  }
 done
 
 log "Configuration du noyau"
