@@ -10,7 +10,7 @@ env:
   KERNEL_REF: lineage-23.2
   KSU_REF: 0909ad8b04103581230800997d2bcbc6d30e223e
   BOOT_URL: https://mirrorbits.lineageos.org/full/kiev/20260809/boot.img
-  PATCH_DIR: patches/susfs-kiev
+  PATCH_DIR: https://github.com/JackA1ltman/NonGKI_Kernel_Build_2nd/blob/mainline/Patches/Patch/susfs_patch_to_4.19.patch
   ANDROID_NDK_FALLBACK: 27.2.12479018
 
 jobs:
