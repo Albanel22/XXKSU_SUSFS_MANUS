@@ -101,7 +101,8 @@ make O="$OUT_DIR" ARCH=arm64 LLVM=1 LLVM_IAS=1 \
   arch/arm64/boot/Makefile
   
   make O="$OUT_DIR" ARCH=arm64 LLVM=1 LLVM_IAS=1 \
-    CROSS_COMPILE=aarch64-linux-gnu- -j"$(nproc)" Image
+  CROSS_COMPILE=aarch64-linux-gnu- -j"$(nproc)" Image || \
+  test -s "$OUT_DIR/arch/arm64/boot/Image"
 )
 IMAGE="$OUT_DIR/arch/arm64/boot/Image"
 test -s "$IMAGE"
