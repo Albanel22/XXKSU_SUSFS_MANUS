@@ -48,17 +48,19 @@ ACTUAL_KSU_REF="$(git -C "$KSU_DIR" rev-parse HEAD)"
 }
 
 log "Vérification du port SUSFS"
-[ -d "$PATCH_DIR" ] || { echo "Port SUSFS absent: $PATCH_DIR" >&2; exit 1; }
-mapfile -t SUSFS_PATCHES < <(find "$PATCH_DIR" -maxdepth 1 -type f -name '*.patch' -print | sort)
-[ "${#SUSFS_PATCHES[@]}" -gt 0 ] || { echo "Aucun patch SUSFS dans $PATCH_DIR" >&2; exit 1; }
-for p in "${SUSFS_PATCHES[@]}"; do
-  echo "Contrôle: $p"
-  git apply --check --verbose "$p"
-done
-for p in "${SUSFS_PATCHES[@]}"; do
-  echo "Application: $p"
-  git apply --index "$p"
-done
+PATCH_FILE="$WORK_DIR/susfs_patch_to_4.19.patch"
+PATCH_URL="${PATCH_URL:-https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/mainline/Patches/Patch/susfs_patch_to_4.19.patch}"
+
+curl --fail --location --retry 3 --retry-all-errors \
+  --output "$PATCH_FILE" "$PATCH_URL"
+
+test -s "$PATCH_FILE"
+
+echo "Contrôle: $PATCH_FILE"
+git apply --check --verbose "$PATCH_FILE"
+
+echo "Application: $PATCH_FILE"
+git apply --index "$PATCH_FILE"
 
 log "Contrôle des anciennes APIs"
 if grep -RInE 'ksu_is_init_rc_hook_enabled|ksu_handle_sys_read([^_a-zA-Z]|$)|ksu_hide_setprocattr([^_a-zA-Z]|$)' \
