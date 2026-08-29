@@ -96,6 +96,10 @@ make O="$OUT_DIR" ARCH=arm64 LLVM=1 LLVM_IAS=1 \
   CROSS_COMPILE=aarch64-linux-gnu- "$DEFCONFIG"
 (
   cd "$KERNEL_DIR"
+
+  sed -i 's#DTB_OBJS := $(shell find $(obj)/dts/ -name \\\*\.dtb)#DTB_OBJS := $(shell find $(srctree)/arch/arm64/boot/dts/ -name \\\*\.dtb)#' \
+  arch/arm64/boot/Makefile
+  
   make O="$OUT_DIR" ARCH=arm64 LLVM=1 LLVM_IAS=1 \
     CROSS_COMPILE=aarch64-linux-gnu- -j"$(nproc)" Image
 )
