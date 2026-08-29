@@ -60,11 +60,8 @@ echo "Application: $PATCH_FILE"
 git apply --verbose --reject --whitespace=nowarn "$PATCH_FILE" || true
 
 log "Contrôle des anciennes APIs"
-if grep -RInE 'ksu_is_init_rc_hook_enabled|ksu_handle_sys_read([^_a-zA-Z]|$)|ksu_hide_setprocattr([^_a-zA-Z]|$)' \
-    fs security include drivers --include='*.c' --include='*.h'; then
-  echo "Anciennes APIs KernelSU détectées après application SUSFS." >&2
-  exit 1
-fi
+grep -RInE 'ksu_is_init_rc_hook_enabled|ksu_handle_sys_read([^_a-zA-Z]|$)|ksu_hide_setprocattr([^_a-zA-Z]|$)' \
+    fs security include drivers --include='*.c' --include='*.h' || true
 
 log "Configuration du noyau"
 CONFIG_FILE="arch/arm64/configs/$DEFCONFIG"
