@@ -1,4 +1,4 @@
-name: Build kiev kernel only
+name: Build kiev KernelSU SUSFS
 
 'on':
   workflow_dispatch:
@@ -7,10 +7,11 @@ permissions:
   contents: read
 
 env:
+  KERNEL_REF: lineage-23.2
+  KSU_REF: 0909ad8b04103581230800997d2bcbc6d30e223e
   BOOT_URL: https://mirrorbits.lineageos.org/full/kiev/20260809/boot.img
-  KSU_REF: v3.2.5
-  SUSFS_PATCH_DIR: patches/susfs-kiev
-  CCACHE_SIZE: 10G
+  PATCH_DIR: patches/susfs-kiev
+  ANDROID_NDK_VERSION: r29
 
 jobs:
   build:
@@ -18,33 +19,74 @@ jobs:
     timeout-minutes: 360
 
     steps:
-      - name: Checkout du script et des patchs
+      - name: Checkout du dépôt
         uses: actions/checkout@v4
 
-      - name: Installer les outils
+      - name: Libérer de l’espace disque
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup
+          sudo apt-get clean
+          df -h /
+
+      - name: Installer les dépendances
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
             bc bison build-essential ccache clang curl flex git \
-            libelf-dev libssl-dev llvm lld make unzip zip \
-            gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
-          chmod +x build.sh
+            libelf-dev libncurses-dev libssl-dev lld llvm \
+            gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
+            make perl python3 unzip zip
+          command -v clang
+          command -v ld.lld
+          command -v llvm-ar
 
-      - name: Compiler le noyau et reconstruire boot.img
+      - name: Installer Rust et la cible Android
         shell: bash
-        run: ./build.sh
+        run: |
+          set -euo pipefail
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add aarch64-linux-android
+
+      - name: Installer le NDK Android
+        uses: android-actions/setup-android@v3
+
+      - name: Installer le NDK r29
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager --install "ndk;${ANDROID_NDK_VERSION}"
+          echo "ANDROID_NDK_ROOT=${ANDROID_SDK_ROOT}/ndk/${ANDROID_NDK_VERSION}" >> "$GITHUB_ENV"
+
+      - name: Configurer ccache
+        shell: bash
+        run: |
+          set -euo pipefail
+          ccache --set-config=compression=true
+          ccache -M 5G
+          ccache -z
+
+      - name: Compiler KernelSU, ksud et boot.img
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x build.sh
+          ./build.sh
+
+      - name: Statistiques ccache
+        if: always()
+        shell: bash
+        run: ccache -s > output/ccache-stats.txt 2>&1 || true
 
       - name: Publier les artefacts
-        if: always()
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: kiev-kernel-ksu-susfs-${{ github.run_number }}
-          if-no-files-found: warn
+          name: kiev-kernelsu-susfs-${{ github.run_number }}
           retention-days: 14
-          path: |
-            boot-kiev-ksu-susfs.img
-            boot-kiev-ksu-susfs.sha256
-            Image-kiev-ksu-susfs
-            kiev-effective-config.txt
+          if-no-files-found: error
+          path: output/*
